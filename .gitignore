@@ -7,8 +7,8 @@ __pycache__/
 courses.json
 courses_copy.json
 schedule_test.html
-
-
+.kiro/
+src/canvas_mcp/docs/
 
 .env
 testing/

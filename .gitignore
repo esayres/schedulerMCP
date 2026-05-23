@@ -5,6 +5,8 @@ __pycache__/
 .venv/
 .uv/
 courses.json
+courses_copy.json
+schedule_test.html
 
 
 

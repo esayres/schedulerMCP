@@ -1,19 +1,28 @@
 [project]
-name = "canvas-mcp"
+name = "scheduler-mcp"
 version = "0.1.0"
-description = "Canvas MCP server with FastMCP tools"
+description = "MCP Scheduling Tool - Course planning and schedule generation server"
 readme = "README.md"
 requires-python = ">=3.10"
+authors = [
+    {name = "Your Name", email = "your.email@example.com"}
+]
+keywords = ["mcp", "scheduling", "course-planning", "education"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Education",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+]
 
 dependencies = [
-    "requests",
-    "fastmcp",  # make sure this is the correct package name for FastMCP
-    "beautifulsoup4",
+    "fastmcp>=0.1.0",
 ]
 
 [project.scripts]
-canvas-mcp = "canvas_mcp.run:main"
-
+scheduler-mcp = "canvas_mcp.run:main"
 
 [build-system]
 requires = ["setuptools>=68"]
@@ -24,3 +33,9 @@ package-dir = {"" = "src"}
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["src/canvas_mcp/tests"]
+python_files = ["test*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]

@@ -203,7 +203,7 @@ The tool expects course data in JSON format with the following structure:
 }
 ```
 
-Place course data in `courses.json` or `courses_<semester>.json` in the project root.
+Place course data in `src/scheduler_mcp/data/courses.json` or `src/scheduler_mcp/data/courses_<semester>.json`.
 
 ## Development
 
@@ -212,18 +212,20 @@ Place course data in `courses.json` or `courses_<semester>.json` in the project 
 ```
 canvasMCP/
 ├── src/
-│   └── canvas_mcp/
+│   └── scheduler_mcp/
 │       ├── run.py              # Main entry point with MCP tools
 │       ├── database.py         # Course data loading and queries
 │       ├── schueduling.py      # Scheduling algorithms
 │       ├── workload.py         # Workload estimation
+│       ├── data/               # Course data directory
+│       │   ├── courses.json    # Default course database
+│       │   └── courses_*.json  # Semester-specific databases
 │       ├── tools/
 │       │   └── courses.py      # Tool implementations
 │       └── tests/
 │           ├── testConflicts.py
 │           ├── testPrereqs.py
 │           └── testSchueduler.py
-├── courses.json                # Course data
 ├── pyproject.toml             # Package configuration
 └── README.md
 ```
@@ -235,7 +237,7 @@ canvasMCP/
 uv pip install pytest
 
 # Run tests
-pytest src/canvas_mcp/tests/
+pytest src/scheduler_mcp/tests/
 ```
 
 ### Contributing
@@ -278,14 +280,30 @@ This separation ensures:
 - [ ] Visual schedule generation
 - [ ] Export to calendar formats (iCal, Google Calendar)
 
-## License
+## MIT License
 
-[Your License Here]
+MIT License
+
+Copyright (c) 2026 Elijah Sayres
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
 
 ## Contact
 
-[Your Contact Information]
-
-## Acknowledgments
-
-Built with [FastMCP](https://github.com/jlowin/fastmcp) - A fast, simple framework for building MCP servers.
+elijahsayres@gmail.com

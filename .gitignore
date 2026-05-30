@@ -6,10 +6,11 @@ __pycache__/
 .uv/
 schedule_test.html
 .kiro/
-src/canvas_mcp/docs/
+src/scheduler_mcp/docs/
 
-# Data files (stored in src/canvas_mcp/data/)
-src/canvas_mcp/data/*.json
+# Data files (stored in src/scheduler_mcp/data/)
+src/scheduler_mcp/data/*.json
+src/scheduler_mcp/data/*.md
 
 # Development test scripts
 dev_tests/

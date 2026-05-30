@@ -212,7 +212,7 @@ def save_course_database(courses: List[Dict], semester_info: Dict, output_dir: P
     Args:
         courses: List of course dictionaries
         semester_info: Semester information
-        output_dir: Output directory (defaults to src/canvas_mcp/data/)
+        output_dir: Output directory (defaults to src/scheduler_mcp/data/)
     
     Returns:
         Path to saved file
@@ -260,7 +260,7 @@ def check_database_freshness(semester_info: Dict, output_dir: Path = None) -> bo
     
     Args:
         semester_info: Semester information
-        output_dir: Output directory (defaults to src/canvas_mcp/data/)
+        output_dir: Output directory (defaults to src/scheduler_mcp/data/)
     
     Returns:
         True if database is fresh, False if needs update
@@ -291,7 +291,7 @@ def get_available_semesters(output_dir: Path = None) -> List[Dict]:
     Get list of available semester databases.
     
     Args:
-        output_dir: Output directory (defaults to src/canvas_mcp/data/)
+        output_dir: Output directory (defaults to src/scheduler_mcp/data/)
     
     Returns:
         List of semester info dictionaries

@@ -11,7 +11,7 @@ from typing import Optional, List, Dict, Any
 import subprocess
 import sys
 
-# Use the data directory inside canvas_mcp package
+# Use the data directory inside scheduler_mcp package
 DATA_DIR = Path(__file__).parent / "data"
 
 COURSES = []
@@ -175,7 +175,7 @@ def load_courses(semester: Optional[str] = None, auto_scrape: bool = True) -> Li
                     f"Course data not found for semester: {semester}\n"
                     f"Tried: {semester_path} and {default_path}\n"
                     f"Auto-scraping failed. Run manually:\n"
-                    f"  python src/canvas_mcp/webscrapper/unified_scraper.py"
+                    f"  python src/scheduler_mcp/webscrapper/unified_scraper.py"
                 )
         else:
             raise FileNotFoundError(
@@ -183,7 +183,7 @@ def load_courses(semester: Optional[str] = None, auto_scrape: bool = True) -> Li
                 f"Tried: {semester_path} and {default_path}\n"
                 f"\n"
                 f"⚠️  Please run the scraper first:\n"
-                f"  python src/canvas_mcp/webscrapper/unified_scraper.py\n"
+                f"  python src/scheduler_mcp/webscrapper/unified_scraper.py\n"
                 f"\n"
                 f"This will take 5-15 minutes but only needs to be done once per semester.\n"
                 f"After that, all queries will be instant!"

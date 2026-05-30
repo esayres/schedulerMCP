@@ -10,7 +10,7 @@ from pathlib import Path
 # Add parent directory to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
-from canvas_mcp import schueduling
+from scheduler_mcp import schueduling
 
 
 def test_parse_time_12hour():

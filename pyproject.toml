@@ -1,28 +1,47 @@
 [project]
 name = "scheduler-mcp"
-version = "0.1.0"
-description = "MCP Scheduling Tool - Course planning and schedule generation server"
+version = "1.0.0"
+description = "MCP server for AVC course scheduling and registration analysis with web scraping, prerequisite validation, and schedule optimization"
 readme = "README.md"
+license = {text = "MIT"}
 requires-python = ">=3.10"
 authors = [
-    {name = "Your Name", email = "your.email@example.com"}
+    {name = "Elijah Sayres", email = "elijahsayres@gmail.com"}
 ]
-keywords = ["mcp", "scheduling", "course-planning", "education"]
+keywords = ["mcp", "scheduling", "course-planning", "education", "avc", "web-scraping", "prerequisites", "ai-assistant"]
 classifiers = [
-    "Development Status :: 3 - Alpha",
+    "Development Status :: 5 - Production/Stable",
     "Intended Audience :: Education",
-    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
+    "Topic :: Education",
+    "Topic :: Software Development :: Libraries :: Python Modules",
 ]
 
 dependencies = [
     "fastmcp>=0.1.0",
+    "beautifulsoup4>=4.12.0",
+    "requests>=2.31.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.4.0",
+    "pytest-cov>=4.1.0",
+]
+http = [
+    "fastapi>=0.104.0",
+    "uvicorn[standard]>=0.24.0",
 ]
 
 [project.scripts]
-scheduler-mcp = "canvas_mcp.run:main"
+scheduler-mcp = "scheduler_mcp.run:main"
+scheduler-mcp-http = "scheduler_mcp.http_server:main"
+
+[project.urls]
+Repository = "https://github.com/esayres/schedulerMCP"
 
 [build-system]
 requires = ["setuptools>=68"]
@@ -35,7 +54,7 @@ package-dir = {"" = "src"}
 where = ["src"]
 
 [tool.pytest.ini_options]
-testpaths = ["src/canvas_mcp/tests"]
+testpaths = ["src/scheduler_mcp/tests"]
 python_files = ["test*.py"]
 python_classes = ["Test*"]
 python_functions = ["test_*"]

@@ -4,11 +4,16 @@ __pycache__/
 .vscode/
 .venv/
 .uv/
-courses.json
-courses_copy.json
 schedule_test.html
 .kiro/
 src/canvas_mcp/docs/
+
+# Data files (stored in src/canvas_mcp/data/)
+src/canvas_mcp/data/*.json
+
+# Development test scripts
+dev_tests/
+test_output.txt
 
 .env
 testing/

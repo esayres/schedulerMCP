@@ -1,15 +1,8 @@
 import requests
 from bs4 import BeautifulSoup
 
-# SO COURSES with several times (like physics labs and class) # dont link together in the same class
-# also CS:230 doesnt appear for some reason?
-
-
 # --- STEP 1: Fetch (same as before) ---
 url = "https://ssb.avc.edu/AVCPROD/pw_pub_sched.p_listthislist"
-
-# techincally i should figure out how exactly to get the exact term I want (term and DESC) somewhere i can keep scrapping
-# i also need a main.py scrapper that uses both scrappers to get a acruate database
 
 payload = {
     "term": "202630",
@@ -176,10 +169,6 @@ while i < len(rows):
     
     i += 1
 
-# --- STEP 3: Test output ---
-for r in results[:5]:
-    print(r)
-
 
 # Statistics
 print("\nTotal sections:", len(results))
@@ -188,9 +177,3 @@ print("\nTotal sections:", len(results))
 sections_with_labs = sum(1 for s in results if s.get("additional_times"))
 if sections_with_labs > 0:
     print(f"Sections with lab times: {sections_with_labs}")
-
-# Show PHYS courses
-print("\nPHYS courses:")
-for i in results:
-    if i["course"] and "PHYS" in i["course"]:
-        print(i)

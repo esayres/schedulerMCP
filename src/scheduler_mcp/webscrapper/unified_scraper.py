@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """
 Unified Course Database Scraper
 
@@ -53,7 +52,7 @@ def scrape_catalog(semester_info: dict, parallel: bool = True) -> list:
     print("\n[1/3] Fetching department list...")
     dept_data = catalog_scraper.fetch_all_disciplines(semester_info['catalog_term'])
     departments = dept_data['slugs']
-    print(f"✓ Found {len(departments)} departments")
+    print(f"Found {len(departments)} departments")
     
     # Scrape all courses
     print(f"\n[2/3] Scraping courses from {len(departments)} departments...")
@@ -78,13 +77,13 @@ def scrape_catalog(semester_info: dict, parallel: bool = True) -> list:
                     sleep=0.5
                 )
             all_courses.extend(courses)
-            print(f"    ✓ Found {len(courses)} courses")
+            print(f"Found {len(courses)} courses")
         except Exception as e:
-            print(f"    ✗ Error: {e}")
+            print(f"Error: {e}")
             continue
     
     print(f"\n[3/3] Catalog scraping complete!")
-    print(f"✓ Total courses scraped: {len(all_courses)}")
+    print(f"Total courses scraped: {len(all_courses)}")
     
     return all_courses
 
@@ -277,17 +276,17 @@ def scrape_schedule(semester_info: dict) -> list:
             
             i += 1
         
-        print(f"✓ Total sections scraped: {len(results)}")
+        print(f"Total sections scraped: {len(results)}")
         
         # Count sections with labs
         sections_with_labs = sum(1 for s in results if s.get("additional_times"))
         if sections_with_labs > 0:
-            print(f"✓ Sections with lab times: {sections_with_labs}")
+            print(f"Sections with lab times: {sections_with_labs}")
         
         return results
         
     except Exception as e:
-        print(f"✗ Error scraping schedule: {e}")
+        print(f"Error scraping schedule: {e}")
         print("Continuing without schedule data...")
         return []
 
@@ -352,7 +351,7 @@ def main():
     
     # Check if database is fresh
     if not args.force and check_database_freshness(semester_info):
-        print(f"\n✓ Database for {semester_info['term_desc']} is already up to date!")
+        print(f"\n Database for {semester_info['term_desc']} is already up to date!")
         print("Use --force to re-scrape anyway.")
         return 0
     
@@ -363,7 +362,7 @@ def main():
             parallel = not args.no_parallel
             catalog_courses = scrape_catalog(semester_info, parallel=parallel)
         except Exception as e:
-            print(f"\n✗ Error scraping catalog: {e}")
+            print(f"\n Error scraping catalog: {e}")
             if args.catalog_only:
                 return 1
     
@@ -373,7 +372,7 @@ def main():
         try:
             schedule_sections = scrape_schedule(semester_info)
         except Exception as e:
-            print(f"\n✗ Error scraping schedule: {e}")
+            print(f"\n Error scraping schedule: {e}")
             if args.schedule_only:
                 return 1
     
@@ -388,7 +387,7 @@ def main():
         
         # Count courses with sections
         courses_with_sections = sum(1 for c in merged_courses if c.get("sections"))
-        print(f"✓ {courses_with_sections} courses have section data")
+        print(f"{courses_with_sections} courses have section data")
     elif catalog_courses:
         print("Using catalog data only (no schedule data available)")
         merged_courses = catalog_courses
@@ -396,7 +395,7 @@ def main():
         print("Using schedule data only (no catalog data available)")
         merged_courses = []
     else:
-        print("✗ No data scraped!")
+        print("No data scraped!")
         return 1
     
     # Save database
@@ -410,13 +409,13 @@ def main():
     print(f"\n{'='*60}")
     print(f"SCRAPING COMPLETE!")
     print(f"{'='*60}")
-    print(f"✓ Semester: {semester_info['term_desc']}")
-    print(f"✓ Total Courses: {len(merged_courses)}")
+    print(f"Semester: {semester_info['term_desc']}")
+    print(f"Total Courses: {len(merged_courses)}")
     if schedule_sections:
         courses_with_sections = sum(1 for c in merged_courses if c.get("sections"))
-        print(f"✓ Courses with Sections: {courses_with_sections}")
-        print(f"✓ Total Sections: {len(schedule_sections)}")
-    print(f"✓ Saved to: {filepath}")
+        print(f"Courses with Sections: {courses_with_sections}")
+        print(f"Total Sections: {len(schedule_sections)}")
+    print(f"Saved to: {filepath}")
     print(f"\nYou can now use the MCP server with this data!")
     
     return 0
@@ -429,7 +428,7 @@ if __name__ == "__main__":
         print("\n\nScraping interrupted by user.")
         sys.exit(1)
     except Exception as e:
-        print(f"\n✗ Fatal error: {e}")
+        print(f"\n Fatal error: {e}")
         import traceback
         traceback.print_exc()
         sys.exit(1)

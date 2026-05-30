@@ -248,8 +248,8 @@ def save_course_database(courses: List[Dict], semester_info: Dict, output_dir: P
     with open(default_filepath, "w", encoding="utf-8") as f:
         json.dump(courses, f, indent=2)
     
-    print(f"✓ Saved {len(courses)} courses to {filepath}")
-    print(f"✓ Saved default to {default_filepath}")
+    print(f"Saved {len(courses)} courses to {filepath}")
+    print(f"Saved default to {default_filepath}")
     
     return filepath
 

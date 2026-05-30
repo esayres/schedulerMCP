@@ -11,7 +11,6 @@ This is designed to be used inside your MCP ingestion tool:
 build_course_database(term)
 """
 
-# REFACTOR LATER
 
 import requests
 from bs4 import BeautifulSoup
@@ -495,8 +494,6 @@ def build_course_database(term: str, departments: list, parallel: bool = True, m
 if __name__ == "__main__":
     TERM = "2025-26"
 
-    # you would get this from allldisciplines endpoint
-    #departments = ["french", "computer-science"]
     departments = fetch_all_disciplines(TERM)['slugs']
 
     dataset = build_course_database(TERM, departments)

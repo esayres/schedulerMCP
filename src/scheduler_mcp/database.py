@@ -1,10 +1,5 @@
 # handles the database for the application, which is a several simple json files
 
-
-# so db is being stored in a different location? in coding files and not in project files
-# also sections are ALL empty in db
-
-
 import json
 from pathlib import Path
 from typing import Optional, List, Dict, Any
@@ -45,15 +40,15 @@ def auto_scrape_semester(semester: str) -> bool:
     Returns:
         True if scraping succeeded, False otherwise
     """
-    print(f"\n⚠️  Course data not found for {semester}")
-    print(f"🔄 Automatically running web scraper...")
+    print(f"\n Course data not found for {semester}")
+    print(f"Automatically running web scraper...")
     print(f"   (This may take 5-15 minutes)\n")
     
     try:
         # Parse semester string
         parts = semester.split("_")
         if len(parts) != 2:
-            print(f"❌ Invalid semester format: {semester}")
+            print(f"Invalid semester format: {semester}")
             return False
         
         season, year = parts[0], parts[1]
@@ -62,7 +57,7 @@ def auto_scrape_semester(semester: str) -> bool:
         scraper_path = Path(__file__).parent / "webscrapper" / "unified_scraper.py"
         
         if not scraper_path.exists():
-            print(f"❌ Scraper not found at: {scraper_path}")
+            print(f"Scraper not found at: {scraper_path}")
             return False
         
         # Run scraper with subprocess
@@ -74,18 +69,18 @@ def auto_scrape_semester(semester: str) -> bool:
         )
         
         if result.returncode == 0:
-            print(f"✅ Successfully scraped {semester} data!")
+            print(f"Successfully scraped {semester} data!")
             return True
         else:
-            print(f"❌ Scraper failed with error:")
+            print(f"Scraper failed with error:")
             print(result.stderr)
             return False
             
     except subprocess.TimeoutExpired:
-        print(f"❌ Scraper timed out after 30 minutes")
+        print(f"Scraper timed out after 30 minutes")
         return False
     except Exception as e:
-        print(f"❌ Error running scraper: {e}")
+        print(f"Error running scraper: {e}")
         return False
 
 
@@ -182,7 +177,7 @@ def load_courses(semester: Optional[str] = None, auto_scrape: bool = True) -> Li
                 f"Course data not found for semester: {semester}\n"
                 f"Tried: {semester_path} and {default_path}\n"
                 f"\n"
-                f"⚠️  Please run the scraper first:\n"
+                f"Please run the scraper first:\n"
                 f"  python src/scheduler_mcp/webscrapper/unified_scraper.py\n"
                 f"\n"
                 f"This will take 5-15 minutes but only needs to be done once per semester.\n"

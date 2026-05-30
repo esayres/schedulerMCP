@@ -15,10 +15,11 @@ build_course_database(term)
 
 import requests
 from bs4 import BeautifulSoup
-#from urllib.parse import urljoin
 import re
 import time
 import json
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from typing import List, Dict, Any
 
 BASE = "https://api-prod.elumenapp.com/catalog/sites/publish/content/"
 TENANT = "avc.elumenapp.com"
@@ -79,15 +80,24 @@ def parse_department_courses(html: str):
 
 
 def parse_description(description: str):
-    """Extract prereqs/coreqs/advisories and clean description."""
+    """
+    Extract prereqs/coreqs/advisories and clean description.
+    
+    Returns nested arrays for OR logic:
+    - Flat items: ALL required (AND logic)
+    - Nested arrays: ONE required (OR logic)
+    
+    Example: ["MATH150", ["MATH140", "MATH140H"], "CS130"]
+    Means: MATH150 AND (MATH140 OR MATH140H) AND CS130
+    """
 
     prereqs = []
     coreqs = []
     advisory = []
     limitation = []
 
-    # Match helper
     def extract_courses(pattern, text):
+        """Extract courses with proper AND/OR logic."""
         match = re.search(pattern, text, re.IGNORECASE | re.DOTALL)
 
         if not match:
@@ -95,50 +105,77 @@ def parse_description(description: str):
 
         raw = match.group(1)
 
-        # clean html
+        # Clean HTML
         raw = re.sub(r"<br\s*/?>", " ", raw)
-        raw = re.sub(r"\s+", " ", raw)
+        raw = re.sub(r"\s+", " ", raw).strip()
+        
+        # IMPORTANT: Remove parenthetical metadata before parsing
+        # This removes things like "(C-ID: COMP 152)" and "(Formerly CIS 121)"
+        # We want to keep the prerequisite sentence but remove metadata
+        raw = re.sub(r"\([^)]*\)", "", raw)
+        
+        # Also remove common metadata patterns that might not be in parentheses
+        raw = re.sub(r"C-ID:?\s*[A-Z]+\s*\d+", "", raw, flags=re.IGNORECASE)
+        raw = re.sub(r"Formerly\s+[A-Z]+\s*\d+", "", raw, flags=re.IGNORECASE)
+        
+        # Clean up extra whitespace after removal
+        raw = re.sub(r"\s+", " ", raw).strip()
 
         results = []
 
-        # Split logical OR groups
-        parts = re.split(r"\s+or\s+", raw, flags=re.IGNORECASE)
+        # Split on "and" to get AND requirements
+        and_parts = re.split(r"\s+and\s+", raw, flags=re.IGNORECASE)
 
-        for part in parts:
-
-            # capture:
-            # ENGL C1000 (ENGL 101)
-            alias_match = re.search(
-                r"([A-Z]{2,5}\s?[A-Z]?\d{3,4}[A-Z]?)\s*\(([^)]+)\)",
-                part
-            )
-
-            if alias_match:
-                main = alias_match.group(1).strip()
-
-                aliases = re.findall(
-                    r"[A-Z]{2,5}\s?[A-Z]?\d{3,4}[A-Z]?",
-                    alias_match.group(2)
-                )
-
-                grouped = [main] + aliases
-
-                results.append({"or": grouped})
-
+        for part in and_parts:
+            part = part.strip()
+            
+            # Skip empty parts
+            if not part:
+                continue
+            
+            # Check if this part has OR logic
+            if " or " in part.lower():
+                # Split on "or" to get OR options
+                or_parts = re.split(r"\s+or\s+", part, flags=re.IGNORECASE)
+                
+                # Extract course IDs from each OR option
+                or_courses = []
+                for or_part in or_parts:
+                    # Find all course IDs in this part
+                    courses = re.findall(
+                        r"[A-Z]{2,5}\s?[A-Z]?\d{3,4}[A-Z]?",
+                        or_part
+                    )
+                    or_courses.extend(courses)
+                
+                # Normalize course IDs (remove spaces)
+                or_courses = [c.replace(" ", "") for c in or_courses]
+                
+                # Remove duplicates while preserving order
+                seen = set()
+                or_courses = [c for c in or_courses if not (c in seen or seen.add(c))]
+                
+                # Add as nested array (OR logic)
+                if len(or_courses) > 1:
+                    results.append(or_courses)
+                elif len(or_courses) == 1:
+                    results.append(or_courses[0])
             else:
+                # No OR logic, just extract course IDs
                 courses = re.findall(
                     r"[A-Z]{2,5}\s?[A-Z]?\d{3,4}[A-Z]?",
                     part
                 )
-
-                if len(courses) == 1:
-                    results.append(courses[0])
-
-                elif courses:
-                    results.append(courses)
+                
+                # Normalize course IDs (remove spaces)
+                courses = [c.replace(" ", "") for c in courses]
+                
+                # Add each as required (AND logic)
+                for course in courses:
+                    if course not in results:  # Avoid duplicates
+                        results.append(course)
 
         return results
-
 
     def extract_text(pattern, text):
         match = re.search(pattern, text, re.IGNORECASE | re.DOTALL)
@@ -159,7 +196,8 @@ def parse_description(description: str):
     advisory = extract_courses(r"Advisory?:\s*(.*?)(?=Prerequisites?:|Corequisites?:|Limitation on Enrollment?:|$)",description)
     limitation = extract_text(r"Limitation on Enrollment?:\s*(.*?)(?=Prerequisites?:|Corequisites?:|Advisory?:|$)",description)
 
-    # Remove metadata sentences
+    # Remove metadata sentences from description
+    # But keep the metadata in parentheses in the description itself
     patterns_to_remove = [
         r"Prerequisites?:\s*[^\.]+\.",
         r"Corequisites?:\s*[^\.]+\.",
@@ -383,17 +421,69 @@ def crawl_department(term: str, dept: str, sleep=0.5):
 
     return results
 
+
+def crawl_department_parallel(term: str, dept: str, max_workers: int = 5):
+    """
+    Crawl department with parallel course fetching.
+    Much faster than sequential crawling.
+    """
+    print(f"[+] Crawling department: {dept}")
+
+    html = fetch_department(term, dept)
+    courses = parse_department_courses(html)
+
+    results = []
+    
+    def fetch_course_wrapper(course_info):
+        """Wrapper for parallel execution."""
+        course_id = course_info["course_id"]
+        try:
+            detail = fetch_course_detail(term, course_id)
+            detail["department"] = dept
+            detail["label"] = course_info["title"]
+            return detail
+        except Exception as e:
+            print(f"    [!] Error: {course_id} -> {e}")
+            return None
+    
+    # Use ThreadPoolExecutor for parallel requests
+    with ThreadPoolExecutor(max_workers=max_workers) as executor:
+        # Submit all course fetches
+        future_to_course = {
+            executor.submit(fetch_course_wrapper, c): c 
+            for c in courses
+        }
+        
+        # Collect results as they complete
+        for i, future in enumerate(as_completed(future_to_course), 1):
+            result = future.result()
+            if result:
+                results.append(result)
+            print(f"    [{i}/{len(courses)}] Completed")
+    
+    return results
+
 # ----------------------------
 # Step 5: build full dataset
 # ----------------------------
 
-def build_course_database(term: str, departments: list):
-    """Build full dataset for MCP."""
-
+def build_course_database(term: str, departments: list, parallel: bool = True, max_workers: int = 5):
+    """
+    Build full dataset for MCP.
+    
+    Args:
+        term: Academic term (e.g., "2025-26")
+        departments: List of department slugs
+        parallel: Use parallel scraping (much faster)
+        max_workers: Number of concurrent workers
+    """
     all_courses = []
 
     for dept in departments:
-        data = crawl_department(term, dept)
+        if parallel:
+            data = crawl_department_parallel(term, dept, max_workers=max_workers)
+        else:
+            data = crawl_department(term, dept)
         all_courses.extend(data)
 
     return all_courses

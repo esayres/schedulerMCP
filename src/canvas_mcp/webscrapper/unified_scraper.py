@@ -31,12 +31,13 @@ from semesterSync import (
 )
 
 
-def scrape_catalog(semester_info: dict) -> list:
+def scrape_catalog(semester_info: dict, parallel: bool = True) -> list:
     """
     Scrape course catalog data.
     
     Args:
         semester_info: Semester information dictionary
+        parallel: Use parallel scraping for speed (default: True)
     
     Returns:
         List of course dictionaries
@@ -46,6 +47,7 @@ def scrape_catalog(semester_info: dict) -> list:
     print(f"{'='*60}")
     print(f"Term: {semester_info['catalog_term']}")
     print(f"Semester: {semester_info['term_desc']}")
+    print(f"Mode: {'PARALLEL (fast)' if parallel else 'SEQUENTIAL (slow)'}")
     
     # Get all departments
     print("\n[1/3] Fetching department list...")
@@ -55,17 +57,26 @@ def scrape_catalog(semester_info: dict) -> list:
     
     # Scrape all courses
     print(f"\n[2/3] Scraping courses from {len(departments)} departments...")
+    if parallel:
+        print("Using parallel scraping (5 concurrent requests per department)")
     print("(This may take several minutes...)")
     
     all_courses = []
     for i, dept in enumerate(departments, 1):
         print(f"\n  [{i}/{len(departments)}] {dept}")
         try:
-            courses = catalog_scraper.crawl_department(
-                semester_info['catalog_term'],
-                dept,
-                sleep=0.5  # Be nice to the server
-            )
+            if parallel:
+                courses = catalog_scraper.crawl_department_parallel(
+                    semester_info['catalog_term'],
+                    dept,
+                    max_workers=5  # 5 concurrent requests
+                )
+            else:
+                courses = catalog_scraper.crawl_department(
+                    semester_info['catalog_term'],
+                    dept,
+                    sleep=0.5
+                )
             all_courses.extend(courses)
             print(f"    ✓ Found {len(courses)} courses")
         except Exception as e:
@@ -80,7 +91,7 @@ def scrape_catalog(semester_info: dict) -> list:
 
 def scrape_schedule(semester_info: dict) -> list:
     """
-    Scrape schedule/section data.
+    Scrape schedule/section data with lab support.
     
     Args:
         semester_info: Semester information dictionary
@@ -139,54 +150,140 @@ def scrape_schedule(semester_info: dict) -> list:
         print("[2/2] Parsing schedule data...")
         soup = BeautifulSoup(response.text, "html.parser")
         
-        # Parse sections
+        # Parse sections (FIXED to handle TBA, colspan, and lab rows)
         results = []
         current_course = None
         rows = soup.find_all("tr")
         
-        for row in rows:
+        i = 0
+        while i < len(rows):
+            row = rows[i]
+            
             # Detect course header
             course_header = row.find("td", class_="crn_header")
             if course_header:
                 current_course = course_header.get_text(strip=True)
+                i += 1
                 continue
             
             cells = row.find_all("td")
             
-            # Section rows have many columns
-            if len(cells) >= 15:
-                try:
-                    status = cells[0].get_text(strip=True)
-                    crn = cells[1].get_text(strip=True)
-                    section = cells[2].get_text(strip=True)
-                    credits = cells[3].get_text(strip=True)
+            # Skip header rows and empty rows
+            if len(cells) < 10:
+                i += 1
+                continue
+            
+            # Check if this is a data row (has CRN link)
+            crn_cell = cells[1] if len(cells) > 1 else None
+            if not crn_cell:
+                i += 1
+                continue
+            
+            crn_link = crn_cell.find("a")
+            if not crn_link:
+                i += 1
+                continue
+            
+            try:
+                status = cells[0].get_text(strip=True)
+                crn = crn_link.get_text(strip=True)
+                section = cells[2].get_text(strip=True)
+                credits = cells[3].get_text(strip=True)
+
+                # Handle days - check for TBA or individual day cells
+                days = []
+                time_str = ""
+                location = ""
+                instructor = ""
+                
+                # Check if days are collapsed (TBA case)
+                days_cell = cells[6] if len(cells) > 6 else None
+                if days_cell and days_cell.get("colspan"):
+                    # TBA case
+                    days_text = days_cell.get_text(strip=True)
+                    if days_text and days_text != "TBA":
+                        days = [days_text]
                     
-                    # Days (M T W R F etc.)
-                    days = []
-                    for i in range(6, 13):
-                        d = cells[i].get_text(strip=True)
-                        if d:
+                    time_str = ""
+                    location = cells[8].get_text(strip=True) if len(cells) > 8 else ""
+                    instructor = cells[12].get_text(strip=True) if len(cells) > 12 else ""
+                else:
+                    # Normal case
+                    for j in range(6, min(13, len(cells))):
+                        d = cells[j].get_text(strip=True)
+                        if d and d != "&nbsp;":
                             days.append(d)
                     
-                    time_str = cells[13].get_text(strip=True)
-                    location = cells[15].get_text(strip=True)
-                    instructor = cells[19].get_text(strip=True)
+                    time_str = cells[13].get_text(strip=True) if len(cells) > 13 else ""
+                    location = cells[15].get_text(strip=True) if len(cells) > 15 else ""
+                    instructor = cells[19].get_text(strip=True) if len(cells) > 19 else ""
+                
+                # Create the main section entry
+                section_data = {
+                    "course": current_course,
+                    "crn": crn,
+                    "section": section,
+                    "credits": credits,
+                    "days": days,
+                    "time": time_str,
+                    "location": location,
+                    "instructor": instructor,
+                    "status": status
+                }
+                
+                # Check if next row is a lab row (starts with colspan="6")
+                if i + 1 < len(rows):
+                    next_row = rows[i + 1]
+                    next_cells = next_row.find_all("td")
                     
-                    results.append({
-                        "course": current_course,
-                        "crn": crn,
-                        "section": section,
-                        "credits": credits,
-                        "days": days,
-                        "time": time_str,
-                        "location": location,
-                        "instructor": instructor,
-                        "status": status
-                    })
-                except Exception:
-                    pass
+                    # Lab row detection: first cell has colspan="6" and is mostly empty
+                    if (len(next_cells) > 0 and 
+                        next_cells[0].get("colspan") == "6" and
+                        not next_cells[0].find("a")):  # No CRN link
+                        
+                        # This is a lab row! Extract lab meeting time
+                        lab_days = []
+                        lab_time = ""
+                        lab_location = ""
+                        
+                        # Days start at index 1 (after the colspan="6")
+                        for j in range(1, min(8, len(next_cells))):
+                            d = next_cells[j].get_text(strip=True)
+                            if d and d != "&nbsp;":
+                                lab_days.append(d)
+                        
+                        # Time is at index 8
+                        lab_time = next_cells[8].get_text(strip=True) if len(next_cells) > 8 else ""
+                        # Location is at index 10
+                        lab_location = next_cells[10].get_text(strip=True) if len(next_cells) > 10 else ""
+                        
+                        # Add lab as additional meeting time
+                        if not section_data.get("additional_times"):
+                            section_data["additional_times"] = []
+                        
+                        section_data["additional_times"].append({
+                            "days": lab_days,
+                            "time": lab_time,
+                            "location": lab_location,
+                            "type": "lab"
+                        })
+                        
+                        # Skip the lab row
+                        i += 1
+                
+                results.append(section_data)
+            except Exception:
+                pass
+            
+            i += 1
         
         print(f"✓ Total sections scraped: {len(results)}")
+        
+        # Count sections with labs
+        sections_with_labs = sum(1 for s in results if s.get("additional_times"))
+        if sections_with_labs > 0:
+            print(f"✓ Sections with lab times: {sections_with_labs}")
+        
         return results
         
     except Exception as e:
@@ -225,6 +322,17 @@ def main():
         action="store_true",
         help="Only scrape schedule (skip catalog)"
     )
+    parser.add_argument(
+        "--no-parallel",
+        action="store_true",
+        help="Disable parallel scraping (slower but safer)"
+    )
+    parser.add_argument(
+        "--workers",
+        type=int,
+        default=5,
+        help="Number of concurrent workers for parallel scraping (default: 5)"
+    )
     
     args = parser.parse_args()
     
@@ -252,7 +360,8 @@ def main():
     catalog_courses = []
     if not args.schedule_only:
         try:
-            catalog_courses = scrape_catalog(semester_info)
+            parallel = not args.no_parallel
+            catalog_courses = scrape_catalog(semester_info, parallel=parallel)
         except Exception as e:
             print(f"\n✗ Error scraping catalog: {e}")
             if args.catalog_only:

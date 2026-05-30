@@ -133,13 +133,24 @@ def merge_course_data(catalog_courses: List[Dict], schedule_sections: List[Dict]
     
     for section in schedule_sections:
         course_name = section.get("course", "")
-        # Normalize course name (e.g., "ACCT 111" -> "acct111")
-        course_id = course_name.replace(" ", "").lower()
+        
+        # Extract course code from formats like:
+        # "PHYS 211 - General Physics" -> "phys211"
+        # "ACCT 111" -> "acct111"
+        if " - " in course_name:
+            # Split on " - " and take the first part
+            course_code = course_name.split(" - ")[0].strip()
+        else:
+            course_code = course_name
+        
+        # Normalize: remove spaces and lowercase (e.g., "PHYS 211" -> "phys211")
+        course_id = course_code.replace(" ", "").lower()
         
         if course_id not in sections_by_course:
             sections_by_course[course_id] = []
         
-        sections_by_course[course_id].append({
+        # Create section entry with all fields
+        section_entry = {
             "crn": section.get("crn"),
             "section": section.get("section"),
             "credits": section.get("credits"),
@@ -148,10 +159,18 @@ def merge_course_data(catalog_courses: List[Dict], schedule_sections: List[Dict]
             "location": section.get("location"),
             "instructor": section.get("instructor"),
             "status": section.get("status", "Open")
-        })
+        }
+        
+        # Add additional_times if present (for lab times)
+        if "additional_times" in section:
+            section_entry["additional_times"] = section["additional_times"]
+        
+        sections_by_course[course_id].append(section_entry)
     
     # Merge sections into courses
     merged_courses = []
+    courses_with_sections = 0
+    total_sections_added = 0
     
     for course in catalog_courses:
         course_id = course.get("course_id", "").lower()
@@ -159,10 +178,29 @@ def merge_course_data(catalog_courses: List[Dict], schedule_sections: List[Dict]
         # Add sections if available
         if course_id in sections_by_course:
             course["sections"] = sections_by_course[course_id]
+            courses_with_sections += 1
+            total_sections_added += len(sections_by_course[course_id])
         else:
             course["sections"] = []
         
         merged_courses.append(course)
+    
+    # Print merge statistics
+    print(f"\nMerge Statistics:")
+    print(f"  • Total catalog courses: {len(catalog_courses)}")
+    print(f"  • Total schedule sections: {len(schedule_sections)}")
+    print(f"  • Unique courses with sections: {len(sections_by_course)}")
+    print(f"  • Courses matched with sections: {courses_with_sections}")
+    print(f"  • Total sections added: {total_sections_added}")
+    
+    # Show some unmatched courses for debugging
+    unmatched_schedule = set(sections_by_course.keys())
+    catalog_ids = {c.get("course_id", "").lower() for c in catalog_courses}
+    unmatched_in_schedule = unmatched_schedule - catalog_ids
+    
+    if unmatched_in_schedule:
+        print(f"  • Sections without catalog match: {len(unmatched_in_schedule)}")
+        print(f"    Examples: {list(unmatched_in_schedule)[:5]}")
     
     return merged_courses
 
@@ -174,13 +212,13 @@ def save_course_database(courses: List[Dict], semester_info: Dict, output_dir: P
     Args:
         courses: List of course dictionaries
         semester_info: Semester information
-        output_dir: Output directory (defaults to project root)
+        output_dir: Output directory (defaults to src/canvas_mcp/data/)
     
     Returns:
         Path to saved file
     """
     if output_dir is None:
-        output_dir = Path(__file__).parent.parent.parent.parent
+        output_dir = Path(__file__).parent / "data"
     
     # Save with semester-specific filename
     filename = semester_info["filename"]
@@ -222,13 +260,13 @@ def check_database_freshness(semester_info: Dict, output_dir: Path = None) -> bo
     
     Args:
         semester_info: Semester information
-        output_dir: Output directory
+        output_dir: Output directory (defaults to src/canvas_mcp/data/)
     
     Returns:
         True if database is fresh, False if needs update
     """
     if output_dir is None:
-        output_dir = Path(__file__).parent.parent.parent.parent
+        output_dir = Path(__file__).parent / "data"
     
     filepath = output_dir / semester_info["filename"]
     
@@ -253,13 +291,13 @@ def get_available_semesters(output_dir: Path = None) -> List[Dict]:
     Get list of available semester databases.
     
     Args:
-        output_dir: Output directory
+        output_dir: Output directory (defaults to src/canvas_mcp/data/)
     
     Returns:
         List of semester info dictionaries
     """
     if output_dir is None:
-        output_dir = Path(__file__).parent.parent.parent.parent
+        output_dir = Path(__file__).parent / "data"
     
     semesters = []
     

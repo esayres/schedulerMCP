@@ -81,6 +81,13 @@ def validate_prerequisites(
     """
     Validate that prerequisites are satisfied for requested courses.
     
+    Prerequisite Logic:
+    - Flat items in array: ALL required (AND logic)
+    - Nested arrays: ONE of the items required (OR logic)
+    
+    Example: ["MATH150", ["MATH140", "MATH140H"], "CS130"]
+    Means: MATH150 AND (MATH140 OR MATH140H) AND CS130
+    
     Args:
         completed_courses: List of completed course IDs
         requested_courses: List of requested course IDs
@@ -104,18 +111,32 @@ def validate_prerequisites(
         if not prereqs:
             continue
         
-        # Check if any prerequisite is satisfied
-        # Note: Current data has OR logic (any prereq satisfies)
-        prereq_satisfied = any(
-            database.normalize_course_id(p) in completed_set
-            for p in prereqs
-        )
+        # Check each prerequisite requirement
+        unsatisfied_requirements = []
         
-        if not prereq_satisfied and prereqs:
+        for prereq in prereqs:
+            if isinstance(prereq, list):
+                # Nested array: ONE of these courses is required (OR logic)
+                if not any(database.normalize_course_id(p) in completed_set for p in prereq):
+                    unsatisfied_requirements.append({
+                        "type": "one_of",
+                        "options": prereq,
+                        "message": f"Need one of: {', '.join(prereq)}"
+                    })
+            else:
+                # Single course: THIS course is required (AND logic)
+                if database.normalize_course_id(prereq) not in completed_set:
+                    unsatisfied_requirements.append({
+                        "type": "required",
+                        "course": prereq,
+                        "message": f"Need: {prereq}"
+                    })
+        
+        if unsatisfied_requirements:
             missing_prereqs.append({
                 "course": course_id,
-                "missing_prerequisites": prereqs,
-                "message": f"Missing prerequisite for {course_id}: need one of {prereqs}"
+                "missing_prerequisites": unsatisfied_requirements,
+                "message": f"Missing prerequisites for {course_id}"
             })
     
     return {

@@ -18,26 +18,35 @@ def search_courses_impl(query: str, semester: str = "fall_2026") -> List[Dict[st
         semester: Semester identifier
     
     Returns:
-        List of matching courses
+        List of matching courses with semester context
     """
     try:
         database.load_courses(semester)
-    except FileNotFoundError:
-        return []
+    except FileNotFoundError as e:
+        return {
+            "error": str(e),
+            "semester": semester
+        }
     
     results = database.search_courses(query)
     
-    # Return simplified course info
-    return [
-        {
-            "course_id": c["course_id"],
-            "title": c["title"],
-            "units": c.get("min_units", ""),
-            "department": c.get("department", ""),
-            "description": c.get("description", "")[:200] + "..." if len(c.get("description", "")) > 200 else c.get("description", "")
-        }
-        for c in results
-    ]
+    # Return with semester context
+    return {
+        "semester": database.get_current_semester_info(),
+        "semester_id": database.get_selected_semester(),
+        "query": query,
+        "count": len(results),
+        "courses": [
+            {
+                "course_id": c["course_id"],
+                "title": c["title"],
+                "units": c.get("min_units", ""),
+                "department": c.get("department", ""),
+                "description": c.get("description", "")[:200] + "..." if len(c.get("description", "")) > 200 else c.get("description", "")
+            }
+            for c in results
+        ]
+    }
 
 
 def get_course_info_impl(course_id: str, semester: str = "fall_2026") -> Dict[str, Any]:
@@ -49,19 +58,28 @@ def get_course_info_impl(course_id: str, semester: str = "fall_2026") -> Dict[st
         semester: Semester identifier
     
     Returns:
-        Course details or error
+        Course details with semester context or error
     """
     try:
         database.load_courses(semester)
-    except FileNotFoundError:
-        return {"error": f"Course data not found for semester: {semester}"}
+    except FileNotFoundError as e:
+        return {
+            "error": str(e),
+            "semester": semester
+        }
     
     course = database.get_course_by_id(course_id)
     
     if not course:
-        return {"error": f"Course not found: {course_id}"}
+        return {
+            "error": f"Course not found: {course_id}",
+            "semester": database.get_current_semester_info(),
+            "semester_id": database.get_selected_semester()
+        }
     
     return {
+        "semester": database.get_current_semester_info(),
+        "semester_id": database.get_selected_semester(),
         "course_id": course["course_id"],
         "title": course["title"],
         "description": course.get("description", ""),
@@ -73,36 +91,54 @@ def get_course_info_impl(course_id: str, semester: str = "fall_2026") -> Dict[st
         "lab_hours": course.get("lab_hours", "0"),
         "contact_hours": course.get("contact_hours", "0"),
         "out_of_class_hours": course.get("out_of_class_hours", "0"),
-        "department": course.get("department", "")
+        "department": course.get("department", ""),
+        "sections": course.get("sections", [])
     }
 
 
-def get_course_sections_impl(course_id: str, semester: str = "fall_2026") -> List[Dict[str, Any]]:
+def get_course_sections_impl(course_id: str, semester: str = "fall_2026") -> Dict[str, Any]:
     """
     Get all sections for a course.
-    
-    Note: Current data doesn't include section information.
-    This is a placeholder for when section data is available.
     
     Args:
         course_id: Course identifier
         semester: Semester identifier
     
     Returns:
-        List of sections (currently empty)
+        Dictionary with semester context and sections list
     """
     try:
         database.load_courses(semester)
-    except FileNotFoundError:
-        return []
+    except FileNotFoundError as e:
+        return {
+            "error": str(e),
+            "semester": semester,
+            "course_id": course_id,
+            "sections": []
+        }
     
     course = database.get_course_by_id(course_id)
     
     if not course:
-        return []
+        return {
+            "error": f"Course not found: {course_id}",
+            "semester": database.get_current_semester_info(),
+            "semester_id": database.get_selected_semester(),
+            "course_id": course_id,
+            "sections": []
+        }
     
-    # TODO: Return actual sections when data is available
-    return []
+    sections = course.get("sections", [])
+    
+    return {
+        "semester": database.get_current_semester_info(),
+        "semester_id": database.get_selected_semester(),
+        "course_id": course_id,
+        "course_title": course.get("title", ""),
+        "section_count": len(sections),
+        "sections": sections,
+        "message": f"Found {len(sections)} section(s)" if sections else "No sections available (run scraper to populate section data)"
+    }
 
 
 def detect_schedule_conflicts_impl(course_ids: List[str]) -> Dict[str, Any]:
@@ -113,13 +149,15 @@ def detect_schedule_conflicts_impl(course_ids: List[str]) -> Dict[str, Any]:
         course_ids: List of course IDs
     
     Returns:
-        Conflict detection results
+        Conflict detection results with semester context
     """
     database.load_courses()
     
     conflicts = schueduling.detect_conflicts(course_ids)
     
     return {
+        "semester": database.get_current_semester_info(),
+        "semester_id": database.get_selected_semester(),
         "has_conflicts": len(conflicts) > 0,
         "conflicts": conflicts,
         "message": "No conflicts detected" if not conflicts else f"Found {len(conflicts)} conflict(s)"
@@ -129,7 +167,7 @@ def detect_schedule_conflicts_impl(course_ids: List[str]) -> Dict[str, Any]:
 def generate_possible_schedules_impl(
     requested_courses: List[str],
     max_units: int = 18
-) -> List[Dict[str, Any]]:
+) -> Dict[str, Any]:
     """
     Generate valid schedule combinations.
     
@@ -138,16 +176,19 @@ def generate_possible_schedules_impl(
         max_units: Maximum unit limit
     
     Returns:
-        List of valid schedules
+        Dictionary with semester context and list of valid schedules
     """
     database.load_courses()
     
     schedules = schueduling.generate_schedules(requested_courses, max_units)
     
-    if not schedules:
-        return []
-    
-    return schedules
+    return {
+        "semester": database.get_current_semester_info(),
+        "semester_id": database.get_selected_semester(),
+        "schedule_count": len(schedules),
+        "schedules": schedules,
+        "message": f"Found {len(schedules)} valid schedule(s)" if schedules else "No valid schedules found"
+    }
 
 
 def suggest_best_schedule_impl(
@@ -164,7 +205,7 @@ def suggest_best_schedule_impl(
         max_units: Maximum unit limit
     
     Returns:
-        Best schedule recommendation
+        Best schedule recommendation with semester context
     """
     database.load_courses()
     
@@ -174,10 +215,14 @@ def suggest_best_schedule_impl(
         total_units = schueduling.calculate_total_units(requested_courses)
         if total_units > max_units:
             return {
+                "semester": database.get_current_semester_info(),
+                "semester_id": database.get_selected_semester(),
                 "error": f"Total units ({total_units}) exceeds maximum ({max_units})",
                 "suggestion": "Consider removing some courses or increasing unit limit"
             }
         return {
+            "semester": database.get_current_semester_info(),
+            "semester_id": database.get_selected_semester(),
             "error": "No valid schedules found",
             "suggestion": "Check for conflicts or unavailable courses"
         }
@@ -195,6 +240,8 @@ def suggest_best_schedule_impl(
     best = scored_schedules[0]
     
     return {
+        "semester": database.get_current_semester_info(),
+        "semester_id": database.get_selected_semester(),
         "schedule": best,
         "preference": preference,
         "message": f"Best schedule found with score {best['score']}"
@@ -213,7 +260,7 @@ def validate_prerequisites_impl(
         requested_courses: List of requested course IDs
     
     Returns:
-        Validation results
+        Validation results with semester context
     """
     database.load_courses()
     
@@ -221,6 +268,8 @@ def validate_prerequisites_impl(
     coreq_result = schueduling.validate_corequisites(requested_courses)
     
     return {
+        "semester": database.get_current_semester_info(),
+        "semester_id": database.get_selected_semester(),
         "prerequisites_valid": prereq_result["valid"],
         "corequisites_valid": coreq_result["valid"],
         "overall_valid": prereq_result["valid"] and coreq_result["valid"],
@@ -238,11 +287,15 @@ def validate_course_plan_impl(course_plan: List[List[str]]) -> Dict[str, Any]:
         course_plan: List of semesters, each containing course IDs
     
     Returns:
-        Validation results
+        Validation results with semester context
     """
     database.load_courses()
     
     result = schueduling.validate_course_plan(course_plan)
+    
+    # Add semester context
+    result["semester"] = database.get_current_semester_info()
+    result["semester_id"] = database.get_selected_semester()
     
     return result
 
@@ -255,7 +308,7 @@ def estimate_semester_workload_impl(course_ids: List[str]) -> Dict[str, Any]:
         course_ids: List of course IDs
     
     Returns:
-        Workload estimation
+        Workload estimation with semester context
     """
     database.load_courses()
     
@@ -263,6 +316,8 @@ def estimate_semester_workload_impl(course_ids: List[str]) -> Dict[str, Any]:
     heavy_check = workload.detect_heavy_semester(course_ids)
     
     return {
+        "semester": database.get_current_semester_info(),
+        "semester_id": database.get_selected_semester(),
         **workload_result,
         "is_heavy_semester": heavy_check["is_heavy"],
         "warnings": heavy_check.get("warnings", [])
@@ -277,8 +332,14 @@ def detect_deadline_clusters_impl(course_ids: List[str]) -> Dict[str, Any]:
         course_ids: List of course IDs
     
     Returns:
-        Deadline cluster predictions
+        Deadline cluster predictions with semester context
     """
     database.load_courses()
     
-    return workload.detect_deadline_clusters(course_ids)
+    result = workload.detect_deadline_clusters(course_ids)
+    
+    # Add semester context
+    result["semester"] = database.get_current_semester_info()
+    result["semester_id"] = database.get_selected_semester()
+    
+    return result

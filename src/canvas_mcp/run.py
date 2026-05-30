@@ -17,56 +17,310 @@ mcp = FastMCP("scheduler-mcp", log_level="DEBUG")
 # =========================
 
 @mcp.tool()
-def search_courses(query: str, semester: str = "fall_2026") -> List[Dict[str, Any]]:
+def run_scraper(semester: str = None, force: bool = False) -> Dict[str, Any]:
+    """
+    Run the web scraper to fetch and populate course data for a semester.
+    
+    WARNING: This takes 5-15 minutes to complete. The MCP call will timeout,
+    but the scraper will continue running in the background.
+    
+    Args:
+        semester: Semester identifier (e.g., "spring_2026", "fall_2026")
+                 If None, uses current semester
+        force: If True, re-scrape even if data already exists
+    
+    Returns:
+        Status message about scraper execution
+    
+    Example:
+        run_scraper("spring_2026")
+    """
+    from . import database, semesterSync
+    import subprocess
+    import sys
+    from pathlib import Path
+    
+    # Determine semester
+    if semester is None:
+        semester = database.get_selected_semester()
+    
+    # Check if data already exists
+    semester_path = Path(__file__).parent.parent.parent.parent / f"courses_{semester}.json"
+    
+    if semester_path.exists() and not force:
+        return {
+            "success": False,
+            "semester": semester,
+            "message": f"Data already exists for {semester}. Use force=True to re-scrape.",
+            "data_file": str(semester_path)
+        }
+    
+    # Parse semester
+    try:
+        parts = semester.split("_")
+        if len(parts) != 2:
+            return {
+                "success": False,
+                "error": f"Invalid semester format: {semester}",
+                "message": "Use format like 'spring_2026' or 'fall_2026'"
+            }
+        
+        season, year = parts[0], parts[1]
+    except Exception as e:
+        return {
+            "success": False,
+            "error": str(e),
+            "message": "Failed to parse semester identifier"
+        }
+    
+    # Start scraper in background
+    scraper_path = Path(__file__).parent / "webscrapper" / "unified_scraper.py"
+    
+    if not scraper_path.exists():
+        return {
+            "success": False,
+            "error": f"Scraper not found at: {scraper_path}",
+            "message": "Web scraper script is missing"
+        }
+    
+    try:
+        # Run scraper as background process (non-blocking)
+        subprocess.Popen(
+            [sys.executable, str(scraper_path), "--semester", season, "--year", year],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            start_new_session=True  # Detach from parent process
+        )
+        
+        return {
+            "success": True,
+            "semester": semester,
+            "message": f"Scraper started for {semester}. This will take 5-15 minutes.",
+            "note": "This MCP call will timeout, but scraping continues in background.",
+            "next_steps": [
+                "Wait 5-15 minutes for scraping to complete",
+                f"Check for {semester_path.name} file",
+                "Retry your original query"
+            ]
+        }
+    except Exception as e:
+        return {
+            "success": False,
+            "error": str(e),
+            "message": "Failed to start scraper"
+        }
+
+
+@mcp.tool()
+def check_scraper_status(semester: str = None) -> Dict[str, Any]:
+    """
+    Check if course data exists for a semester and if scraping is needed.
+    
+    Args:
+        semester: Semester identifier (optional - uses current if not specified)
+    
+    Returns:
+        Status information about data availability
+    
+    Example:
+        check_scraper_status("spring_2026")
+    """
+    from . import database
+    from pathlib import Path
+    
+    # Determine semester
+    if semester is None:
+        semester = database.get_selected_semester()
+    
+    # Check for data files
+    data_dir = Path(__file__).parent.parent.parent.parent
+    semester_path = data_dir / f"courses_{semester}.json"
+    default_path = data_dir / "courses.json"
+    
+    if semester_path.exists():
+        # Check if it has section data
+        import json
+        with open(semester_path) as f:
+            data = json.load(f)
+            courses = data.get("courses", data) if isinstance(data, dict) else data
+            has_sections = len(courses) > 0 and "sections" in courses[0]
+            section_count = len(courses[0].get("sections", [])) if courses else 0
+        
+        return {
+            "data_exists": True,
+            "semester": semester,
+            "file": str(semester_path),
+            "course_count": len(courses),
+            "has_sections": has_sections,
+            "sample_section_count": section_count,
+            "message": "Data exists with sections" if has_sections else "Data exists but missing sections",
+            "needs_scraping": not has_sections
+        }
+    elif default_path.exists():
+        return {
+            "data_exists": True,
+            "semester": semester,
+            "file": str(default_path),
+            "message": "Using default courses.json (may not have semester-specific data)",
+            "needs_scraping": True,
+            "recommendation": f"Run scraper to get {semester}-specific data"
+        }
+    else:
+        return {
+            "data_exists": False,
+            "semester": semester,
+            "message": f"No data found for {semester}",
+            "needs_scraping": True,
+            "recommendation": "Run run_scraper() to fetch data"
+        }
+
+
+@mcp.tool()
+def set_semester(semester: str) -> Dict[str, Any]:
+    """
+    Set the active semester for all subsequent queries.
+    
+    This semester will be remembered for the rest of the session.
+    All course searches, schedule generation, etc. will use this semester.
+    
+    Args:
+        semester: Semester identifier (e.g., "fall_2026", "spring_2027")
+    
+    Returns:
+        Confirmation with semester information
+    
+    Example:
+        set_semester("spring_2027")
+    """
+    from .tools import courses as course_tools
+    from . import database
+    
+    # Set the semester
+    database.set_semester(semester)
+    
+    # Try to load it (will auto-scrape if needed)
+    try:
+        database.load_courses(semester)
+        
+        return {
+            "success": True,
+            "semester": database.get_current_semester_info(),
+            "semester_id": database.get_selected_semester(),
+            "course_count": len(database.COURSES),
+            "message": f"Active semester set to {database.get_current_semester_info()}"
+        }
+    except Exception as e:
+        return {
+            "success": False,
+            "semester": semester,
+            "error": str(e),
+            "message": f"Failed to load semester data: {e}"
+        }
+
+
+@mcp.tool()
+def get_current_semester() -> Dict[str, Any]:
+    """
+    Get information about the currently active semester.
+    
+    Returns:
+        Current semester information
+    
+    Example:
+        get_current_semester()
+    """
+    from . import database
+    
+    # Load current semester if not loaded
+    if not database.COURSES:
+        try:
+            database.load_courses()
+        except Exception as e:
+            return {
+                "error": str(e),
+                "message": "No semester data loaded"
+            }
+    
+    return {
+        "semester": database.get_current_semester_info(),
+        "semester_id": database.get_selected_semester(),
+        "course_count": len(database.COURSES),
+        "message": f"Currently using {database.get_current_semester_info()}"
+    }
+
+
+@mcp.tool()
+def search_courses(query: str, semester: str = None) -> Dict[str, Any]:
     """
     Search courses by keyword, department, or course ID.
     
     Args:
         query: Search term (matches course ID, title, or description)
-        semester: Semester identifier (default: "fall_2026")
+        semester: Semester identifier (optional - uses current if not specified)
     
     Returns:
-        List of matching courses with basic information
+        Search results with semester context
     
     Example:
         search_courses("computer science")
-        search_courses("MATH", "fall_2026")
+        search_courses("MATH", semester="spring_2027")
     """
+    from . import database
+    
+    # Use current semester if not specified
+    if semester is None:
+        semester = database.get_selected_semester()
+    
     return course_tools.search_courses_impl(query, semester)
 
 
 @mcp.tool()
-def get_course_info(course_id: str, semester: str = "fall_2026") -> Dict[str, Any]:
+def get_course_info(course_id: str, semester: str = None) -> Dict[str, Any]:
     """
     Get detailed information about a specific course.
     
     Args:
         course_id: Course identifier (e.g., "CS120", "MATH150")
-        semester: Semester identifier (default: "fall_2026")
+        semester: Semester identifier (optional - uses current if not specified)
     
     Returns:
-        Complete course information including prerequisites, units, and workload
+        Complete course information with semester context
     
     Example:
         get_course_info("acct111")
+        get_course_info("cs120", semester="spring_2027")
     """
+    from . import database
+    
+    # Use current semester if not specified
+    if semester is None:
+        semester = database.get_selected_semester()
+    
     return course_tools.get_course_info_impl(course_id, semester)
 
 
 @mcp.tool()
-def get_course_sections(course_id: str, semester: str = "fall_2026") -> List[Dict[str, Any]]:
+def get_course_sections(course_id: str, semester: str = None) -> Dict[str, Any]:
     """
     Get all available sections for a course.
     
-    Note: Section data not yet available in current dataset.
-    
     Args:
         course_id: Course identifier
-        semester: Semester identifier (default: "fall_2026")
+        semester: Semester identifier (optional - uses current if not specified)
     
     Returns:
-        List of course sections with meeting times
+        Dictionary with semester context and list of course sections with meeting times
+    
+    Example:
+        get_course_sections("cs120")
+        get_course_sections("math150", semester="spring_2027")
     """
+    from . import database
+    
+    # Use current semester if not specified
+    if semester is None:
+        semester = database.get_selected_semester()
+    
     return course_tools.get_course_sections_impl(course_id, semester)
 
 
@@ -95,7 +349,7 @@ def detect_schedule_conflicts(course_ids: List[str]) -> Dict[str, Any]:
 def generate_possible_schedules(
     requested_courses: List[str],
     max_units: int = 18
-) -> List[Dict[str, Any]]:
+) -> Dict[str, Any]:
     """
     Generate all valid schedule combinations from requested courses.
     
@@ -104,7 +358,7 @@ def generate_possible_schedules(
         max_units: Maximum unit limit (default: 18)
     
     Returns:
-        List of valid schedules with no conflicts
+        Dictionary with semester context and list of valid schedules with no conflicts
     
     Example:
         generate_possible_schedules(["cs120", "math150", "engl101"], max_units=15)

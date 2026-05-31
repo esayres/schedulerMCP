@@ -479,7 +479,14 @@ def detect_deadline_clusters(course_ids: List[str]) -> Dict[str, Any]:
 
 def main():
     """Start the MCP server with stdio transport."""
-    mcp.run(transport="streamable-http")
+    import uvicorn
+    import os
+
+    port = int(os.environ.get("PORT", 8000))
+    
+    app = mcp.streamable_http_app()
+    
+    uvicorn.run(app, host="0.0.0.0", port=port)
 
 
 if __name__ == "__main__":

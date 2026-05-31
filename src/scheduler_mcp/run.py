@@ -479,7 +479,7 @@ def detect_deadline_clusters(course_ids: List[str]) -> Dict[str, Any]:
 
 def main():
     """Start the MCP server with stdio transport."""
-    mcp.run(transport="stdio")
+    mcp.run(transport="streamable-http", host="0.0.0.0",port=8000,)
 
 
 if __name__ == "__main__":

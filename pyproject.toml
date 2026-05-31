@@ -1,6 +1,6 @@
 [project]
 name = "scheduler-mcp"
-version = "1.0.0"
+version = "1.0.1"
 description = "MCP server for AVC course scheduling and registration analysis with web scraping, prerequisite validation, and schedule optimization"
 readme = "README.md"
 license = {text = "MIT"}

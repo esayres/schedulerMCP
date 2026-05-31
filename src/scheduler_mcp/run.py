@@ -4,12 +4,12 @@ Main entry point for the MCP Scheduling Tool.
 This module creates the FastMCP server and registers all scheduling tools.
 """
 
-from mcp.server.fastmcp import FastMCP
+from fastmcp import FastMCP
 from typing import List, Dict, Any
 from .tools import courses as course_tools
 
 # Create MCP server instance
-mcp = FastMCP("scheduler-mcp", log_level="DEBUG")
+mcp = FastMCP("scheduler-mcp")
 
 
 # =========================
@@ -479,14 +479,12 @@ def detect_deadline_clusters(course_ids: List[str]) -> Dict[str, Any]:
 
 def main():
     """Start the MCP server with stdio transport."""
-    import uvicorn
     import os
 
-    port = int(os.environ.get("PORT", 8000))
+    port = int(os.environ.get("PORT", 8080))
     
-    app = mcp.streamable_http_app()
     
-    uvicorn.run(app, host="0.0.0.0", port=port, proxy_headers=True, forwarded_allow_ips="*")
+    mcp.run(transport="http", host="0.0.0.0", port=port)
 
 
 if __name__ == "__main__":

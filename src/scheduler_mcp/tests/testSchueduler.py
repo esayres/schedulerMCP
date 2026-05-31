@@ -66,7 +66,7 @@ def test_generate_schedules_over_limit():
 
 def test_score_schedule_balanced():
     """Test schedule scoring with balanced preference."""
-    courses = ["acct111", "acct115", "acct121"]
+    courses = {"courses":["acct111", "acct115", "acct121"]}
     
     score = schueduling.score_schedule(courses, "balanced")
     
@@ -76,7 +76,7 @@ def test_score_schedule_balanced():
 
 def test_score_schedule_compact():
     """Test schedule scoring with compact preference."""
-    courses = ["acct111", "acct115"]
+    courses = {"courses":["acct111", "acct115"]}
     
     score = schueduling.score_schedule(courses, "compact")
     
@@ -85,7 +85,7 @@ def test_score_schedule_compact():
 
 def test_score_schedule_no_mornings():
     """Test schedule scoring with no_mornings preference."""
-    courses = ["acct111"]
+    courses = {"courses":["acct111"]}
     
     score = schueduling.score_schedule(courses, "no_mornings")
     
